@@ -40,7 +40,7 @@ function fillReportsList(reports) {
 }
 
 function openReport(reportName) {
-    viewer.openReport(reportName);
+    viewer.openReport(reportName);    
     selectReportElement(reportName);
 }
 

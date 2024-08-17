@@ -13,6 +13,7 @@ using GrapeCity.ActiveReports.Web.Viewer;
 using GrapeCity.ActiveReports;
 using System.Data;
 using System.Linq;
+using GrapeCity.ActiveReports.Document;
 
 namespace JSViewer_MVCCore
 {
@@ -73,76 +74,80 @@ namespace JSViewer_MVCCore
                         string sql = item.ConnectionProperties.ConnectString;
                         item.ConnectionProperties.ConnectString = null;
                     });
+                    PageDocument document = new PageDocument(pageReport);
+                    document.LocateDataSource += Document_LocateDataSource;
                     return pageReport;
                 });
-                settings.LocateDataSource = args =>
-                {
-                    DataTable dt = new DataTable();
-                    if (args.DataSet.Query.DataSourceName == "DataSource1" && args.Report.Name.Contains("报表"))
-                    {
-                        if (args.DataSet.Name == "DataSet1")
-                        {
-                            dt.Columns.Add("产品编号");
-                            dt.Columns.Add("产品名称");
-                            dt.Columns.Add("单价");
-                            dt.Columns.Add("库存量");
-                            dt.Columns.Add("产地");
-                            dt.Rows.Add("A001", "苹果", 10, 300, "中国");
-                            dt.Rows.Add("A002", "葡萄", 20, 200, "中国");
-                            dt.Rows.Add("A003", "香蕉", 30, 400, "中国");
+                #region 该方式加载datatable，查询中涉及到使用dataset会不支持
+                //settings.LocateDataSource = args =>
+                //{
+                //    DataTable dt = new DataTable();
+                //    if (args.DataSet.Query.DataSourceName == "DataSource1" && args.Report.Name.Contains("报表"))
+                //    {
+                //        if (args.DataSet.Name == "DataSet1")
+                //        {
+                //            dt.Columns.Add("产品编号");
+                //            dt.Columns.Add("产品名称");
+                //            dt.Columns.Add("单价");
+                //            dt.Columns.Add("库存量");
+                //            dt.Columns.Add("产地");
+                //            dt.Rows.Add("A001", "苹果", 10, 300, "中国");
+                //            dt.Rows.Add("A002", "葡萄", 20, 200, "中国");
+                //            dt.Rows.Add("A003", "香蕉", 30, 400, "中国");
 
-                            dt.Rows.Add("A004", "甘蔗", 10, 300, "中国");
+                //            dt.Rows.Add("A004", "甘蔗", 10, 300, "中国");
 
-                            dt.Rows.Add("A005", "荔枝", 20, 200, "中国");
+                //            dt.Rows.Add("A005", "荔枝", 20, 200, "中国");
 
-                            dt.Rows.Add("A006", "芒果", 30, 400, "中国");
+                //            dt.Rows.Add("A006", "芒果", 30, 400, "中国");
 
-                            dt.Rows.Add("A007", "猕猴桃", 110, 300, "中国");
+                //            dt.Rows.Add("A007", "猕猴桃", 110, 300, "中国");
 
-                            dt.Rows.Add("A008", "柠檬", 210, 200, "中国");
+                //            dt.Rows.Add("A008", "柠檬", 210, 200, "中国");
 
-                            dt.Rows.Add("A009", "栗子", 320, 400, "中国");
+                //            dt.Rows.Add("A009", "栗子", 320, 400, "中国");
 
-                            dt.Rows.Add("A010", "火龙果", 100, 300, "中国");
+                //            dt.Rows.Add("A010", "火龙果", 100, 300, "中国");
 
-                            dt.Rows.Add("A011", "青芒", 250, 200, "中国");
+                //            dt.Rows.Add("A011", "青芒", 250, 200, "中国");
 
-                            dt.Rows.Add("A012", "巴旦木", 320, 200, "中国");
+                //            dt.Rows.Add("A012", "巴旦木", 320, 200, "中国");
 
-                            dt.Rows.Add("A013", "土豆", 380, 400, "中国");
+                //            dt.Rows.Add("A013", "土豆", 380, 400, "中国");
 
-                            dt.Rows.Add("A014", "苹果", 110, 300, "中国");
+                //            dt.Rows.Add("A014", "苹果", 110, 300, "中国");
 
-                            dt.Rows.Add("A015", "葡萄", 420, 200, "中国");
+                //            dt.Rows.Add("A015", "葡萄", 420, 200, "中国");
 
-                            dt.Rows.Add("A016", "香蕉", 530, 400, "中国");
+                //            dt.Rows.Add("A016", "香蕉", 530, 400, "中国");
 
-                            dt.Rows.Add("A017", "土豆", 380, 400, "中国");
+                //            dt.Rows.Add("A017", "土豆", 380, 400, "中国");
 
-                            dt.Rows.Add("A018", "苹果", 110, 300, "中国");
+                //            dt.Rows.Add("A018", "苹果", 110, 300, "中国");
 
-                            dt.Rows.Add("A019", "葡萄", 420, 200, "中国");
+                //            dt.Rows.Add("A019", "葡萄", 420, 200, "中国");
 
-                            dt.Rows.Add("A020", "香蕉", 530, 400, "中国");
+                //            dt.Rows.Add("A020", "香蕉", 530, 400, "中国");
 
-                            dt.Rows.Add("A021", "苹果", 10, 300, "中国");
+                //            dt.Rows.Add("A021", "苹果", 10, 300, "中国");
 
-                            dt.Rows.Add("A022", "葡萄", 20, 200, "中国");
+                //            dt.Rows.Add("A022", "葡萄", 20, 200, "中国");
 
-                            dt.Rows.Add("A023", "香蕉", 30, 400, "中国");
+                //            dt.Rows.Add("A023", "香蕉", 30, 400, "中国");
 
-                            dt.Rows.Add("A024", "甘蔗", 10, 300, "中国");
+                //            dt.Rows.Add("A024", "甘蔗", 10, 300, "中国");
 
-                            dt.Rows.Add("A025", "荔枝", 20, 200, "中国");
+                //            dt.Rows.Add("A025", "荔枝", 20, 200, "中国");
 
-                            dt.Rows.Add("A026", "芒果", 30, 400, "中国");
+                //            dt.Rows.Add("A026", "芒果", 30, 400, "中国");
 
-                        }
+                //        }
 
-                    }
+                //    }
 
-                    return dt;
-                };
+                //    return dt;
+                //};
+                #endregion
             });
 
             app.UseReportViewer(settings =>
@@ -167,6 +172,73 @@ namespace JSViewer_MVCCore
             });
 
             app.UseMvc();
+        }
+
+        private void Document_LocateDataSource(object sender, LocateDataSourceEventArgs args)
+        {
+            DataTable dt = new DataTable();
+            if (args.DataSet.Query.DataSourceName == "DataSource1" && args.Report.Name.Contains("报表"))
+            {
+                if (args.DataSet.Name == "DataSet1")
+                {
+                    dt.Columns.Add("产品编号");
+                    dt.Columns.Add("产品名称");
+                    dt.Columns.Add("单价");
+                    dt.Columns.Add("库存量");
+                    dt.Columns.Add("产地");
+                    dt.Rows.Add("A001", "苹果", 10, 300, "中国");
+                    dt.Rows.Add("A002", "葡萄", 20, 200, "中国");
+                    dt.Rows.Add("A003", "香蕉", 30, 400, "中国");
+
+                    dt.Rows.Add("A004", "甘蔗", 10, 300, "中国");
+
+                    dt.Rows.Add("A005", "荔枝", 20, 200, "中国");
+
+                    dt.Rows.Add("A006", "芒果", 30, 400, "中国");
+
+                    dt.Rows.Add("A007", "猕猴桃", 110, 300, "中国");
+
+                    dt.Rows.Add("A008", "柠檬", 210, 200, "中国");
+
+                    dt.Rows.Add("A009", "栗子", 320, 400, "中国");
+
+                    dt.Rows.Add("A010", "火龙果", 100, 300, "中国");
+
+                    dt.Rows.Add("A011", "青芒", 250, 200, "中国");
+
+                    dt.Rows.Add("A012", "巴旦木", 320, 200, "中国");
+
+                    dt.Rows.Add("A013", "土豆", 380, 400, "中国");
+
+                    dt.Rows.Add("A014", "苹果", 110, 300, "中国");
+
+                    dt.Rows.Add("A015", "葡萄", 420, 200, "中国");
+
+                    dt.Rows.Add("A016", "香蕉", 530, 400, "中国");
+
+                    dt.Rows.Add("A017", "土豆", 380, 400, "中国");
+
+                    dt.Rows.Add("A018", "苹果", 110, 300, "中国");
+
+                    dt.Rows.Add("A019", "葡萄", 420, 200, "中国");
+
+                    dt.Rows.Add("A020", "香蕉", 530, 400, "中国");
+
+                    dt.Rows.Add("A021", "苹果", 10, 300, "中国");
+
+                    dt.Rows.Add("A022", "葡萄", 20, 200, "中国");
+
+                    dt.Rows.Add("A023", "香蕉", 30, 400, "中国");
+
+                    dt.Rows.Add("A024", "甘蔗", 10, 300, "中国");
+
+                    dt.Rows.Add("A025", "荔枝", 20, 200, "中国");
+
+                    dt.Rows.Add("A026", "芒果", 30, 400, "中国");
+
+                }
+            }
+            args.Data = dt;
         }
     }
 }

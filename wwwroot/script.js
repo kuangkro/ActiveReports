@@ -45,7 +45,8 @@ function openReport(reportName) {
 }
 
 const viewer = createViewer({
-    element: '#viewerContainer'
+    element: '#viewerContainer',
+    reportParameters: [{ name:"out_parameter", values:["前端回传数据"]}]
 });
 
 getReports().then(reports => {

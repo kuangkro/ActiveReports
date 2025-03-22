@@ -2,7 +2,9 @@
 using GrapeCity.ActiveReports.PageReportModel;
 using JSViewer_MVC_Core;
 using JSViewer_MVC_Core.model;
+using JSViewer_MVC_Core.utils;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
 using System.IO;
@@ -19,17 +21,16 @@ namespace xp.viewer.web.utils
         // <summary>
         /// 数据集
         /// </summary>
-        static List<DataSet_Model> setlist = new List<DataSet_Model>();
+        List<DataSet_Model> setlist = new List<DataSet_Model>();
+
+        static ConcurrentDictionary<string, List<DataSet_Model>> _dataset_parameters_cache = new ConcurrentDictionary<string, List<DataSet_Model>>();
+        static ConcurrentDictionary<string, List<object>> _dataset_cache = new ConcurrentDictionary<string, List<object>>();
 
         /// <summary>
         /// 数据库连接方式
         /// </summary>
         string datasourceType = "OLEDB";//LEDB，SQL
 
-        public ReportGenerateUtil()
-        {
-               
-        }
 
 
         /// <summary>
@@ -40,9 +41,16 @@ namespace xp.viewer.web.utils
         /// <param name="fplb"></param>
         /// <param name="IsPreview">是否预览</param>
         /// <returns></returns>
-        public PageReport GetPageReport(List<object> DataList, List<string> ParametersList, Fplb fplb)
+        public PageReport GetPageReport(List<object> DataList, List<string> ParametersList, string fplb)
         {
+            List<DataSet_Model> dataset_prams_list = new List<DataSet_Model>();
+            if (_dataset_parameters_cache.ContainsKey(fplb))
+            {
+                _dataset_parameters_cache.TryRemove(fplb);
+            }
+            _dataset_parameters_cache.TryAdd(fplb, dataset_prams_list);
             _DataList = DataList;
+
             setlist.Clear();
             PageReport pageReport = null;
 
@@ -52,7 +60,8 @@ namespace xp.viewer.web.utils
             {
                 throw new Exception($"未查到报表信息：{report_file_result.Msg}");
             }
-            else pageReport = report_file_result.Data;
+            pageReport = report_file_result.Data;
+            pageReport.Report.Name = fplb;
 
             #endregion
 
@@ -64,30 +73,30 @@ namespace xp.viewer.web.utils
                 if (pageReport.Report.ReportParameters[i].Name.ToString() == "医院名称" || pageReport.Report.ReportParameters[i].Name.ToString() == "单位名称")
                 {
                     if (pageReport.Report.ReportParameters[i].DefaultValue?.Values.Count > 0)
-                        pageReport.Report.ReportParameters[i].DefaultValue.Values[0] = LoginInfo.Qjbl.gs_dwmc;
+                        pageReport.Report.ReportParameters[i].DefaultValue.Values[0] = LoginInfo.gs_dwmc;
                     else
-                        pageReport.Report.ReportParameters[i].DefaultValue.Values.Add(LoginInfo.Qjbl.gs_dwmc);
+                        pageReport.Report.ReportParameters[i].DefaultValue.Values.Add(LoginInfo.gs_dwmc);
                 }
                 else if (pageReport.Report.ReportParameters[i].Name.ToString() == "账套号" || pageReport.Report.ReportParameters[i].Name.ToString() == "帐套号")
                 {
                     if (pageReport.Report.ReportParameters[i].DefaultValue?.Values.Count > 0)
-                        pageReport.Report.ReportParameters[i].DefaultValue.Values[0] = LoginInfo.Instance.XPSM_CUD_ZTH;
+                        pageReport.Report.ReportParameters[i].DefaultValue.Values[0] = LoginInfo.XPSM_CUD_ZTH;
                     else
-                        pageReport.Report.ReportParameters[i].DefaultValue.Values.Add(LoginInfo.Instance.XPSM_CUD_ZTH);
+                        pageReport.Report.ReportParameters[i].DefaultValue.Values.Add(LoginInfo.XPSM_CUD_ZTH);
                 }
                 else if (pageReport.Report.ReportParameters[i].Name.ToString() == "人员名称")//默认人员
                 {
                     if (pageReport.Report.ReportParameters[i].DefaultValue?.Values.Count > 0)
-                        pageReport.Report.ReportParameters[i].DefaultValue.Values[0] = LoginInfo.Instance.Rybm;
+                        pageReport.Report.ReportParameters[i].DefaultValue.Values[0] = LoginInfo.Rybm;
                     else
-                        pageReport.Report.ReportParameters[i].DefaultValue.Values.Add(LoginInfo.Instance.Rybm);
+                        pageReport.Report.ReportParameters[i].DefaultValue.Values.Add(LoginInfo.Rybm);
                 }
                 else if (pageReport.Report.ReportParameters[i].Name.ToString() == "部门名称")//默认科室
                 {
                     if (pageReport.Report.ReportParameters[i].DefaultValue?.Values.Count > 0)
-                        pageReport.Report.ReportParameters[i].DefaultValue.Values[0] = LoginInfo.Instance.bmbm;
+                        pageReport.Report.ReportParameters[i].DefaultValue.Values[0] = LoginInfo.bmbm;
                     else
-                        pageReport.Report.ReportParameters[i].DefaultValue.Values.Add(LoginInfo.Instance.bmbm);
+                        pageReport.Report.ReportParameters[i].DefaultValue.Values.Add(LoginInfo.bmbm);
                 }
                 else if (pageReport.Report.ReportParameters[i].Name.ToString() == "图片路径")
                 {
@@ -122,19 +131,28 @@ namespace xp.viewer.web.utils
                 foreach (var item in pageReport.Report.DataSets)
                 {
                     DataSet_Model model = new DataSet_Model();
-                    Dictionary<string, object> dic = new Dictionary<string, object>();
-                    dic.Clear();
                     model.name = item.Name;
                     model.CommandText = item.Query.CommandText;
+
+                    Dictionary<string, object> dic = new Dictionary<string, object>();
                     for (int i = 0; i < item.Query.QueryParameters.Count; i++)
                     {
                         if (item.Query.QueryParameters[i].Name.Contains("@"))
-                            dic.Add(item.Query.QueryParameters[i].Name, item.Query.QueryParameters[i].Value.ToString().Replace("=", "").Replace("Parameters!", "").Replace(".Value", "").Replace("\"%\"", "'%'").Replace("“%”", "'%'"));
+                            dic.Add(item.Query.QueryParameters[i].Name, item.Query.QueryParameters[i].Value.ToString()
+                                .Replace("=", "").Replace("Parameters!", "")
+                                .Replace(".Value", "").Replace("\"%\"", "'%'")
+                                .Replace("“%”", "'%'"));
                         else
-                            dic.Add("@" + item.Query.QueryParameters[i].Name, item.Query.QueryParameters[i].Value.ToString().Replace("=", "").Replace("Parameters!", "").Replace(".Value", "").Replace("\"%\"", "'%'").Replace("“%”", "'%'"));
+                            dic.Add("@" + item.Query.QueryParameters[i].Name, item.Query.QueryParameters[i].Value.ToString()
+                                .Replace("=", "")
+                                .Replace("Parameters!", "")
+                                .Replace(".Value", "")
+                                .Replace("\"%\"", "'%'")
+                                .Replace("“%”", "'%'"));
                     }
                     model.Parameters_Model = dic;
-                    setlist.Add(model);
+                    //setlist.Add(model);
+                    dataset_prams_list.Add(model);
 
                     item.Query.QueryParameters.Clear();
                 }
@@ -154,6 +172,8 @@ namespace xp.viewer.web.utils
                 pageReport.Report.DataSources[0].ConnectionProperties.ConnectString = null;
                 pageReport.Report.DataSources[0].Transaction = false;//是否使用同一个数据库事务
                 #endregion
+
+                pageReport.Document.LocateDataSource += Document_LocateDataSource;
                 return pageReport;
             }
             catch (Exception ee)
@@ -167,21 +187,17 @@ namespace xp.viewer.web.utils
         /// </summary>
         /// <param name="id"></param>
         /// <returns></returns>
-        private static ProccessResult<PageReport> GetReportFile(Fplb fplb)
+        private static ProccessResult<PageReport> GetReportFile(string fplb)
         {
             PageReport pageReport = null;
-            var rep = WCFClient.ClientBb.Excute(a => a.GetReportsFile_model(fplb));
-            if (rep == null || rep.Code < 0)
+            var rep = RemoteSourceMock.getReportFile(fplb);
+            if (!rep.Flag)
             {
                 return ProccessResult.OnFailed(pageReport, "获取报表文件失败！请核对是否已导入相应报表文件！");
             }
 
             #region 获取报表文件
-            if (rep.ReContent == null)
-            {
-                return ProccessResult.OnFailed(pageReport, "没有查询到相应的报表文件；" + rep.CodeMsg);
-            }
-            byte[] filebyte = rep.ReContent.word_wj;
+            byte[] filebyte = rep.Data;
             if (filebyte == null)
             {
                 return ProccessResult.OnFailed(pageReport, "获取报表文件失败");
@@ -216,7 +232,7 @@ namespace xp.viewer.web.utils
                     {
                         var image = pageReport.Report.PageHeader.ReportItems[i] as Image;
                         image.MIMEType = "image/png";
-                        image.Source = GrapeCity.ActiveReports.Extensibility.Rendering.Components.ImageSource.External;
+                        image.Source = ImageSource.External;
                         image.Value = path + $@"\images\xp_logo.png";
                         pageReport.Report.PageHeader.ReportItems[i] = image;
                     }
@@ -239,7 +255,7 @@ namespace xp.viewer.web.utils
                     {
                         var image = pageReport.Report.Body.ReportItems[i] as Image;
                         image.MIMEType = "image/png";
-                        image.Source = GrapeCity.ActiveReports.Extensibility.Rendering.Components.ImageSource.External;
+                        image.Source = ImageSource.External;
                         image.Value = path + $@"\images\xp_logo.png";
                         pageReport.Report.Body.ReportItems[i] = image;
                     }
@@ -261,7 +277,7 @@ namespace xp.viewer.web.utils
                     {
                         var image = pageReport.Report.PageFooter.ReportItems[i] as Image;
                         image.MIMEType = "image/png";
-                        image.Source = GrapeCity.ActiveReports.Extensibility.Rendering.Components.ImageSource.External;
+                        image.Source = ImageSource.External;
                         image.Value = path + $@"\images\xp_logo.png";
                         pageReport.Report.PageFooter.ReportItems[i] = image;
                     }
@@ -281,7 +297,7 @@ namespace xp.viewer.web.utils
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="args"></param>
-        public DataTable locatedata_comm(LocateDataSourceEventArgs args)
+        private void Document_LocateDataSource(object sender, LocateDataSourceEventArgs args)
         {
             /// <summary>
             /// 报表参数
@@ -357,7 +373,7 @@ namespace xp.viewer.web.utils
                             #endregion
                         }
 
-                        return returndata(sql, list);
+                        args.Data = returndata(sql, list);
                     }
                 }
             }
@@ -373,9 +389,9 @@ namespace xp.viewer.web.utils
         {
             DataTable dt = new DataTable();
 
-            var rep = WCFClient.ClientBb.Excute(a => a.GetDataTable(sql, list));
+            /*var rep = WCFClient.ClientBb.Excute(a => a.GetDataTable(sql, list));
             if (rep.Code > 0)
-                dt = rep.ReContent;
+                dt = rep.ReContent;*/
             return dt;
         }
 

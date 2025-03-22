@@ -14,6 +14,7 @@ using GrapeCity.ActiveReports;
 using System.Data;
 using System.Linq;
 using GrapeCity.ActiveReports.Document;
+using System.Threading;
 
 namespace JSViewer_MVCCore
 {
@@ -43,6 +44,8 @@ namespace JSViewer_MVCCore
                 .AddMvc(options => options.EnableEndpointRouting = false);
         }
 
+        private static ThreadLocal<string> values = new ThreadLocal<string>();
+
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
@@ -55,11 +58,6 @@ namespace JSViewer_MVCCore
 
             app.UseReporting(settings =>
             {
-                //setting.UseCustomStore(args =>
-                //{
-                //    Console.WriteLine($"UseReporting UseCustomStore:{args}");
-                //    return args;
-                //});
                 settings.UseFileStore(ReportsDirectory);
                 settings.UseCustomStore(fileName =>
                 {
@@ -78,35 +76,23 @@ namespace JSViewer_MVCCore
                     pageReport.Report.ReportParameters.Add(new GrapeCity.ActiveReports.PageReportModel.ReportParameter()
                     {
                         Name = "out_parameter",
+                        Prompt = "内置参数",
                         DefaultValue = new GrapeCity.ActiveReports.PageReportModel.DefaultValue() { Values = { "1" } }
                     });
+                    pageReport.Report.Name = fileName + " -- test";
 
                     PageDocument document = new PageDocument(pageReport);
-                    // todo 这里设置的datasource 和 下面的 locateDataSource 差异是什么
                     document.LocateDataSource += Document_LocateDataSource;
                     return pageReport;
                 });
 
                 #region 该方式加载datatable，查询中涉及到使用dataset会不支持
-                /*settings.LocateDataSource = args =>
-                {
-                    DataTable dt = new DataTable();
-                    if (args.DataSet.Query.DataSourceName == "DataSource1" && args.Report.Name.Contains("报表"))
-                    {
-                        if (args.DataSet.Name == "DataSet1")
-                        {
-                            dt = buildData();
-                        }
-                    }
-
-                    return dt;
-                };*/
-
                 //获取前端传参并绑定报表
                 settings.SetLocateDataSource(args =>
                 {
-                    var parameters = args.ReportParameters;
+                    Console.WriteLine("SetLocateDataSource:" + args.Report.Name);
 
+                    var parameters = args.ReportParameters;
                     DataTable dt = new DataTable();
                     if (args.DataSet.Query.DataSourceName == "DataSource1" && args.Report.Name.Contains("报表"))
                     {
@@ -121,27 +107,6 @@ namespace JSViewer_MVCCore
                 #endregion
             });
 
-            app.UseReportViewer(settings =>
-            {
-                //https://gcdn.grapecity.com.cn/forum.php?mod=viewthread&tid=54413&extra=page%3D1
-                settings.UseFileStore(ReportsDirectory);
-                settings.UseReportProvider(reportid =>
-                {
-                    Console.WriteLine($"UseReportViewer UseReportProvider Action01:{reportid}");
-                    return null;
-                }, reportid =>
-                {
-                    Console.WriteLine($"UseReportViewer UseReportProvider Action02:{reportid}");
-                    return null;
-                });
-                settings.LocateDataSource = args =>
-                {
-                    var dt = args.DataSet;
-                    Console.WriteLine($"LocateDataSource Action:{args}");
-                    return null;
-                };
-            });
-
             app.UseMvc();
         }
 
@@ -152,16 +117,16 @@ namespace JSViewer_MVCCore
         /// <param name="args"></param>
         private void Document_LocateDataSource(object sender, LocateDataSourceEventArgs args)
         {
+            Console.WriteLine("Document_LocateDataSource:" + args.Report.Name);
             DataTable dt = new DataTable();
-            if (args.DataSet.Name == "供货单位")
-            {
-                dt.Columns.Add("BH");
-                dt.Columns.Add("MC");
-                var dr = dt.NewRow();
-                dr["BH"] = "filed - BH";
-                dr["MC"] = "filed - MC";
-                dt.Rows.Add(dr);
-            }
+
+            dt.Columns.Add("BH");
+            dt.Columns.Add("MC");
+            var dr = dt.NewRow();
+            dr["BH"] = "01";
+            dr["MC"] = "filed - MC";
+            dt.Rows.Add(dr);
+
             args.Data = dt;
         }
 

@@ -20,12 +20,6 @@
     </Content>
   </ItemGroup>
   <ItemGroup>
-    <Compile Remove="utils\**" />
-    <Content Remove="utils\**" />
-    <EmbeddedResource Remove="utils\**" />
-    <None Remove="utils\**" />
-  </ItemGroup>
-  <ItemGroup>
     <PackageReference Include="MESCIUS.ActiveReports.Aspnetcore.Viewer" Version="18.0.0" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="6.0.0" />
     <PackageReference Include="System.Text.Json" Version="6.0.8" />

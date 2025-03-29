@@ -1,6 +1,9 @@
-﻿using System.IO;
+﻿using System;
+using System.Data;
+using System.IO;
 using System.Linq;
 using GrapeCity.ActiveReports;
+using GrapeCity.ActiveReports.Document;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 

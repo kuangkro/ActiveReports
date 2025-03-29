@@ -1,4 +1,4 @@
-import {createViewer} from './jsViewer.min.js';
+import { createViewer } from './jsViewer.min.js';
 
 function selectReportElement(reportName) {
     const reportsList = document.getElementById("reportsList");
@@ -40,18 +40,51 @@ function fillReportsList(reports) {
 }
 
 function openReport(reportName) {
-    viewer.openReport(reportName);    
-    selectReportElement(reportName);
+    const postData = [{
+        "productCode": "A001",
+        "productName": "apple",
+        "price": 33,
+        "storeNumber": 200,
+        "address": "china"
+    }, {
+        "productCode": "A002",
+        "productName": "apple",
+        "price": 33,
+        "storeNumber": 200,
+        "address": "japan"
+    },
+    ];
+
+    var cacheKey = "key01";
+    fetch("/reportserver/data/cache/" + cacheKey, {
+        method: "post",
+        header: { "Content-Type": "application/json" },
+        body: JSON.stringify(postData)
+    }).then(resp => {
+        console.log(resp);
+        if (!resp.ok) {
+            throw new Error("网络响应失败")
+        }
+        return resp.json();
+    }).then(data => {
+        console.log(data);
+
+        viewer.openReport(reportName + "$" + cacheKey);
+        selectReportElement(reportName);
+    })
+        .catch(error => {
+            console.log("请求异常", error)
+        });
 }
 
 const viewer = createViewer({
     element: '#viewerContainer',
-    reportParameters: [{ name:"out_parameter", values:["前端回传数据"]}]
+    reportParameters: [{ name: "out_parameter", values: ["前端回传数据"] }]
 });
 
 getReports().then(reports => {
     if (reports.length > 0) {
         fillReportsList(reports);
-        openReport(reports[0]);
+        //openReport(reports[0]);
     }
 });

@@ -15,45 +15,30 @@ namespace xp.viewer.web.utils
     public class ReportGenerateUtil
     {
         /// <summary>
-        /// 
+        /// 参数缓存
         /// </summary>
-        List<object> _DataList = new List<object>();
-        // <summary>
-        /// 数据集
-        /// </summary>
-        List<DataSet_Model> setlist = new List<DataSet_Model>();
-
-        static ConcurrentDictionary<string, List<DataSet_Model>> _dataset_parameters_cache = new ConcurrentDictionary<string, List<DataSet_Model>>();
-        static ConcurrentDictionary<string, List<object>> _dataset_cache = new ConcurrentDictionary<string, List<object>>();
-
-        /// <summary>
-        /// 数据库连接方式
-        /// </summary>
-        string datasourceType = "OLEDB";//LEDB，SQL
-
-
+        static ConcurrentDictionary<string, List<DataSet_Model>> _dataset_cache = new ConcurrentDictionary<string, List<DataSet_Model>>();
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="DataList"></param>
-        /// <param name="ParametersList"></param>
+        /// <param name="memeoryData"></param>
+        /// <param name="defaultParams"></param>
         /// <param name="fplb"></param>
         /// <param name="IsPreview">是否预览</param>
         /// <returns></returns>
-        public PageReport GetPageReport(List<object> DataList, List<string> ParametersList, string fplb)
+        public PageReport GetPageReport(List<object> memeoryData, List<string> defaultParams, string fplb)
         {
             List<DataSet_Model> dataset_prams_list = new List<DataSet_Model>();
-            if (_dataset_parameters_cache.ContainsKey(fplb))
+            if (_dataset_cache.ContainsKey(fplb))
             {
-                _dataset_parameters_cache.TryRemove(fplb);
+                var list = new List<DataSet_Model>();
+                _dataset_cache.Remove(fplb, out list);
+                list.Clear();
             }
-            _dataset_parameters_cache.TryAdd(fplb, dataset_prams_list);
-            _DataList = DataList;
+            _dataset_cache.TryAdd(fplb, dataset_prams_list);
 
-            setlist.Clear();
             PageReport pageReport = null;
-
             #region 获取报表文件
             var report_file_result = GetReportFile(fplb);
             if (!report_file_result.Flag)
@@ -109,27 +94,27 @@ namespace xp.viewer.web.utils
                 #region 传入参数
                 try
                 {
-                    for (int k = 0; k < ParametersList.Count; k++)
+                    for (int k = 0; k < defaultParams.Count; k++)
                     {
                         if (k + 1 <= pageReport.Report.ReportParameters.Count)
-                            pageReport.Report.ReportParameters[k].DefaultValue.Values.Add(ParametersList[k]);
+                            pageReport.Report.ReportParameters[k].DefaultValue.Values.Add(defaultParams[k]);
                     }
 
                 }
                 catch (Exception ee)
                 {
-                    throw new Exception($"内置报表参数个数{pageReport.Report.ReportParameters.Count}和软件传传入参数个数{ParametersList.Count}不匹配！请核对报表文件！" + ee.Message);
+                    throw new Exception($"内置报表参数个数{pageReport.Report.ReportParameters.Count}和软件传传入参数个数{defaultParams.Count}不匹配！请核对报表文件！" + ee.Message);
                 }
                 #endregion
             }
             #endregion
 
             #region 提取报表文件的数据集收起来语句及数据集参数
-            setlist.Clear();
             try
             {
-                foreach (var item in pageReport.Report.DataSets)
+                for (int n = 0; n < pageReport.Report.DataSets.Count; n++)
                 {
+                    var item = pageReport.Report.DataSets[n];
                     DataSet_Model model = new DataSet_Model();
                     model.name = item.Name;
                     model.CommandText = item.Query.CommandText;
@@ -151,9 +136,13 @@ namespace xp.viewer.web.utils
                                 .Replace("“%”", "'%'"));
                     }
                     model.Parameters_Model = dic;
-                    //setlist.Add(model);
+                    if (item.Name.StartsWith("DataSet"))
+                    {
+                        model.ReportData = memeoryData.FirstOrDefault();
+                        if (model.ReportData != null)
+                            memeoryData.Remove(model.ReportData);
+                    }
                     dataset_prams_list.Add(model);
-
                     item.Query.QueryParameters.Clear();
                 }
             }
@@ -167,9 +156,9 @@ namespace xp.viewer.web.utils
             {
                 #region 设计时转运行时
                 ///更换数据类型及删除sql语句
-                datasourceType = pageReport.Report.DataSources[0].ConnectionProperties.DataProvider;
+                var datasourceType = pageReport.Report.DataSources[0].ConnectionProperties.DataProvider;
                 pageReport.Report.DataSources[0].ConnectionProperties.DataProvider = "DATASET";//更换数据类型为dataset
-                pageReport.Report.DataSources[0].ConnectionProperties.ConnectString = null;
+                pageReport.Report.DataSources[0].ConnectionProperties.ConnectString = datasourceType;
                 pageReport.Report.DataSources[0].Transaction = false;//是否使用同一个数据库事务
                 #endregion
 
@@ -302,79 +291,75 @@ namespace xp.viewer.web.utils
             /// <summary>
             /// 报表参数
             /// </summary>
-            Dictionary<string, object> dddlist = new Dictionary<string, object>();
+            Dictionary<string, object> collect_parameter = new Dictionary<string, object>();
             ///单个数据集参数
             List<Tuple<string, object>> list = new List<Tuple<string, object>>();
             for (int i = 0; i < args.Parameters.Count; i++)
             {
-                dddlist.Add(args.Parameters[i].Name, args.Parameters[i].Value);
+                collect_parameter.Add(args.Parameters[i].Name, args.Parameters[i].Value);
             }
 
-            for (int i = 0; i < setlist.Count; i++)
+            var dataset_value = _dataset_cache.GetValueOrDefault(args.Report.Name, null);
+            var dataset = dataset_value.FirstOrDefault(o => o.name.Equals(args.DataSet.Name));
+            if (dataset != null)
             {
-                ///第几个（0开始）
-                int index = setlist.Where(o => o.name.Contains("DataSet")).ToList().FindIndex(o => o.name == args.DataSet.Name);
-
-                if (setlist[i].name.Contains("DataSet") && index < _DataList.Count())
+                if (dataset.ReportData != null)
                 {
-                    if (args.DataSet.Name == setlist[i].name)
-                        args.Data = _DataList[index];
+                    args.Data = dataset.ReportData;
                 }
                 else
                 {
-                    if (args.DataSet.Name == setlist[i].name)
+                    string sql = dataset.CommandText;//sql语句
+                    string datasourceType = args.Report.DataSources[0].ConnectionProperties.ConnectString;
+                    if (datasourceType == "SQL" || datasourceType == "DATASET")
                     {
-                        string sql = setlist[i].CommandText;//sql语句
-                        if (datasourceType == "SQL" || datasourceType == "DATASET")
+                        #region SQL连接方式，参数转换
+                        foreach (var item2 in dataset.Parameters_Model)
                         {
-                            #region SQL连接方式，参数转换
-                            foreach (var item2 in setlist[i].Parameters_Model)
+                            if (item2.Value.ToString().Trim() == "账套号" || item2.Value.ToString().Trim() == "帐套号" || item2.Value.ToString().Trim() == "xpsm_zth")
+                                sql = sql.Replace(item2.Key.ToString(), "1");
+                            else
                             {
-                                if (item2.Value.ToString().Trim() == "账套号" || item2.Value.ToString().Trim() == "帐套号" || item2.Value.ToString().Trim() == "xpsm_zth")
-                                    sql = sql.Replace(item2.Key.ToString(), "1");
-                                else
+                                var value = collect_parameter.Where(o => item2.Value.ToString() == o.Key);
+                                list.Add(new Tuple<string, object>(item2.Key, value.FirstOrDefault().Value?.ToString()));
+                                if (value.FirstOrDefault().Value is IEnumerable<string>)
                                 {
-                                    var value = dddlist.Where(o => item2.Value.ToString() == o.Key);
-                                    list.Add(new Tuple<string, object>(item2.Key, value.FirstOrDefault().Value?.ToString()));
-                                    if (value.FirstOrDefault().Value is IEnumerable<string>)
-                                    {
-                                        var result = "'" + String.Join("','", (value.FirstOrDefault().Value as List<string>).ToArray()) + "'";
-                                        sql = sql.Replace(item2.Key.ToString(), result);
-                                    }
+                                    var result = "'" + String.Join("','", (value.FirstOrDefault().Value as List<string>).ToArray()) + "'";
+                                    sql = sql.Replace(item2.Key.ToString(), result);
                                 }
                             }
-                            #endregion
                         }
-                        else if (datasourceType == "OLEDB")
+                        #endregion
+                    }
+                    else if (datasourceType == "OLEDB")
+                    {
+                        #region OLEDB连接方式，参数转换
+                        var Parameters_Model_list = dataset.Parameters_Model.ToList();
+                        int zthsl = 0;
+                        for (int k = 0; k < Parameters_Model_list.Count; k++)
                         {
-                            #region OLEDB连接方式，参数转换
-                            var Parameters_Model_list = setlist[i].Parameters_Model.ToList();
-                            int zthsl = 0;
-                            for (int k = 0; k < Parameters_Model_list.Count; k++)
+                            if (Parameters_Model_list[k].Value.ToString() == "账套号" || Parameters_Model_list[k].Value.ToString() == "帐套号" || Parameters_Model_list[k].Value.ToString() == "xpsm_zth")
                             {
-                                if (Parameters_Model_list[k].Value.ToString() == "账套号" || Parameters_Model_list[k].Value.ToString() == "帐套号" || Parameters_Model_list[k].Value.ToString() == "xpsm_zth")
+                                sql = replace(sql, "?", "zth", k - zthsl);
+                                zthsl++;
+                            }
+                            else
+                            {
+                                var value = collect_parameter.Where(o => Parameters_Model_list[k].Value.ToString() == o.Key);
+                                if (value.FirstOrDefault().Value is IEnumerable<string>)
                                 {
-                                    sql = replace(sql, "?", "zth", k - zthsl);
+                                    var result = "'" + String.Join("','", (value.FirstOrDefault().Value as List<string>).ToArray()) + "'";
+                                    sql = replace(sql, "?", result, k - zthsl);
                                     zthsl++;
                                 }
                                 else
-                                {
-                                    var value = dddlist.Where(o => Parameters_Model_list[k].Value.ToString() == o.Key);
-                                    if (value.FirstOrDefault().Value is IEnumerable<string>)
-                                    {
-                                        var result = "'" + String.Join("','", (value.FirstOrDefault().Value as List<string>).ToArray()) + "'";
-                                        sql = replace(sql, "?", result, k - zthsl);
-                                        zthsl++;
-                                    }
-                                    else
-                                        list.Add(new Tuple<string, object>(Parameters_Model_list[k].Key, value.FirstOrDefault().Value == null ? "" : value.FirstOrDefault().Value.ToString()));
-                                }
+                                    list.Add(new Tuple<string, object>(Parameters_Model_list[k].Key, value.FirstOrDefault().Value == null ? "" : value.FirstOrDefault().Value.ToString()));
                             }
-                            #endregion
                         }
-
-                        args.Data = returndata(sql, list);
+                        #endregion
                     }
+
+                    args.Data = returndata(sql, list);
                 }
             }
         }

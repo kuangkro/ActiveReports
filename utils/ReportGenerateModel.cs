@@ -24,5 +24,10 @@ namespace JSViewer_MVC_Core
         /// 参数
         /// </summary>
         public Dictionary<string, object> Parameters_Model { get; set; }
+
+        /// <summary>
+        /// 对应数据集
+        /// </summary>
+        public object ReportData { get; set; }
     }
 }

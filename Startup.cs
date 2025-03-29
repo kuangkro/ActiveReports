@@ -15,6 +15,7 @@ using System.Data;
 using System.Linq;
 using GrapeCity.ActiveReports.Document;
 using System.Threading;
+using JSViewer_MVC_Core.utils;
 
 namespace JSViewer_MVCCore
 {
@@ -59,8 +60,12 @@ namespace JSViewer_MVCCore
             app.UseReporting(settings =>
             {
                 settings.UseFileStore(ReportsDirectory);
-                settings.UseCustomStore(fileName =>
+                settings.UseCustomStore(arg =>
                 {
+                    var args = arg.Split("$");
+                    string fileName = args[0];
+                    string key = args[1];
+                    var data = ReportDataCache.getCache(key);
                     var bts = File.ReadAllBytes(Path.Combine(CurrentDir, "Reports/" + fileName));
                     MemoryStream ms = new MemoryStream(bts);
                     TextReader textred = new StreamReader(ms);
@@ -111,7 +116,7 @@ namespace JSViewer_MVCCore
         }
 
         /// <summary>
-        /// 参数中涉及到数据库加载会优先执行该方法
+        /// 报表模板参数中涉及到数据库加载会优先执行该方法
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="args"></param>
